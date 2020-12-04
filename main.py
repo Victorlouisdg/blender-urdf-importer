@@ -3,35 +3,7 @@ import xml.etree.ElementTree as ET
 import bpy
 import mathutils
 
-def load_geometry(visual):
-    geometry = visual.find('geometry')
-    mesh = geometry.find('mesh')
-    mesh_filename = mesh.attrib['filename']        
-    mesh_filename = mesh_filename.replace('package://', '/home/victor/catkin_ws/src/')
-    bpy.ops.wm.collada_import(filepath=mesh_filename)
-    objs = [ob for ob in bpy.context.scene.objects if ob.type in ('CAMERA', 'LIGHT')]
-    bpy.ops.object.delete({"selected_objects": objs})
-        
-    first_object = bpy.context.selected_objects[0]
-    first_object.name = link.attrib['name']
-    
-    for obj in bpy.context.selected_objects[1:]:
-        obj.parent = first_object
-        
-#    position = [float(s) for s in visual.find('origin').attrib['xyz'].split()]
-#    rotation = [float(s) for s in visual.find('origin').attrib['rpy'].split()]
-#    
-#    bpy.ops.object.select_all(action='DESELECT')
-#    first_object.select_set(True)
-#    
-#    eul = mathutils.Euler(rotation, 'XYZ')
-#    mat_rot = eul.to_matrix().to_4x4()
-#    
-    #first_object.matrix_world = first_object.matrix_world @ mat_rot
-    #bpy.ops.transform.translate(value=position, orient_type='LOCAL')
-#    bpy.ops.transform.translate(value=position)
-    
-    
+
 
 filepath = '/home/victor/ur10.urdf'
 
@@ -41,68 +13,131 @@ if not path.exists(filepath):
     print('File does not exist')
 
 tree = ET.parse(filepath)
-root = tree.getroot()
+xml_root = tree.getroot()
 
-print(root.attrib)
 
 links = []
 joints = []
 
-for child in root:
+# TODO check if we can get all elements in tree with tag
+for child in xml_root:
     print(child.tag, child.attrib)
     if child.tag == 'link':
         links.append(child)
     elif child.tag == 'joint':
         joints.append(child)
-i = 0
-for link in links:
-    print(link.attrib)
-    visual = link.find('visual')
-    
-    if(visual): #and link.attrib['name'] == 'shoulder_link'):
-        load_geometry(visual)
-    else:
-        o = bpy.data.objects.new( "empty", None)
-        bpy.context.scene.collection.objects.link(o)
-        o.empty_display_size = 0.2
-        o.name = link.attrib['name']
-        
 
+# findall()
 
-
+parents = []
+childern = []
 
 for joint in joints:
-    parent_link = joint.find('parent').attrib['link']
-    child_link = joint.find('child').attrib['link']
-    bpy.data.objects[child_link].parent = bpy.data.objects[parent_link]
-    
-    
-for joint in joints:
-    parent_link = joint.find('parent').attrib['link']
-    child_link = joint.find('child').attrib['link']
+    parents.append(joint.find('parent').attrib['link'])
+    childern.append(joint.find('child').attrib['link'])
 
-    position = [float(s) for s in joint.find('origin').attrib['xyz'].split()]
-    rotation = [float(s) for s in joint.find('origin').attrib['rpy'].split()]
 
-    eul = mathutils.Euler(rotation, 'XYZ')
-    mat_rot = eul.to_matrix().to_4x4()
+root_links = list(set(parents) - set(childern))
+
+print('p', parents)
+print('c', childern)
+
+print('root_links', root_links)
+
+
+def find_child_joints(joints, link):
+    # vindt alle joints met link als parent
     
+    child_joints = []
+    
+    for joint in joints:
+        if joint.find('parent').attrib['link'] == link:
+            child_joints.append(joint)
+    return child_joints
         
-    print(bpy.data.objects[child_link].matrix_world)
-    print(mat_rot.to_4x4())
+        
+def recurse(link, empty):
+    child_joints = find_child_joints(joints, link)
+    print(child_joints)
+    for child_joint in child_joints:
+        bpy.context.view_layer.objects.active = empty
+        bpy.ops.object.duplicate(linked=False, mode='TRANSLATION')
+        new_empty = bpy.context.active_object
+        new_empty.name = child_joint.attrib['name']
+        
+        translation = [float(s) for s in child_joint.find('origin').attrib['xyz'].split()]
+        
+        bpy.ops.transform.translate(value=translation, orient_type='LOCAL')
+        
+        roll, pitch, yaw = [float(s) for s in child_joint.find('origin').attrib['rpy'].split()]
+        
+        print('rpy', roll, pitch, yaw)
+        
+        new_empty.rotation_euler.rotate_axis("X", roll)
+        new_empty.rotation_euler.rotate_axis("Y", pitch)
+        new_empty.rotation_euler.rotate_axis("Z", yaw)
+        
+        
+        
+        # TODO add bones here
+        
+        child_link = child_joint.find('child').attrib['link']
+        recurse(child_link, new_empty)
     
-    #bpy.data.objects[child_link].matrix_world = bpy.data.objects[child_link].matrix_world @ mat_rot
+
+# TODO check spec whether multiple roots can even exist
+for root_link in root_links:
+    bpy.ops.object.empty_add(type='ARROWS', align='WORLD', location=(0, 0, 0), scale=(1, 1, 1))
+    bpy.context.object.empty_display_size = 0.2
+    empty = bpy.context.active_object
+    empty.name = root_link
+    recurse(root_link, empty)
+        
+        
     
-    bpy.ops.object.select_all(action='DESELECT')
-    bpy.data.objects[child_link].select_set(True)
-    #bpy.ops.transform.rotate(orient_matrix=mat_rot)
-    #bpy.ops.transform.translate(value=position)
+   
+            
+
+
+# TODO 
+
+
+#for joint in joints:
+#    parent_link = joint.find('parent').attrib['link']
+#    child_link = joint.find('child').attrib['link']
+#    
+##for joint in joints:
+##    parent_link = joint.find('parent').attrib['link']
+##    child_link = joint.find('child').attrib['link']
+##    bpy.data.objects[child_link].parent = bpy.data.objects[parent_link]
+#    
+#    
+#for joint in joints:
+#    parent_link = joint.find('parent').attrib['link']
+#    child_link = joint.find('child').attrib['link']
+
+#    position = [float(s) for s in joint.find('origin').attrib['xyz'].split()]
+#    rotation = [float(s) for s in joint.find('origin').attrib['rpy'].split()]
+
+#    eul = mathutils.Euler(rotation, 'XYZ')
+#    mat_rot = eul.to_matrix().to_4x4()
+#    
+#        
+#    print(bpy.data.objects[child_link].matrix_world)
+#    print(mat_rot.to_4x4())
+#    
+#    #bpy.data.objects[child_link].matrix_world = bpy.data.objects[child_link].matrix_world @ mat_rot
+#    
+#    bpy.ops.object.select_all(action='DESELECT')
+#    bpy.data.objects[child_link].select_set(True)
+#    #bpy.ops.transform.rotate(orient_matrix=mat_rot)
+#    #bpy.ops.transform.translate(value=position)
+
+##    
+##    #bpys.objects[]
+##    
+#    
 
 #    
-#    #bpys.objects[]
 #    
-    
-
-    
-    
-print('ok')
+#print('ok')
