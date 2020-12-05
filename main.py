@@ -4,8 +4,8 @@ import bpy
 import mathutils
 
 
-
-filepath = '/home/victor/ur10.urdf'
+filepath = r'C:\Users\Administrator\Blender\urdf_testing\ur10.urdf'
+#filepath = '/home/victor/ur10.urdf'
 
 print(filepath)
 
@@ -16,63 +16,52 @@ tree = ET.parse(filepath)
 xml_root = tree.getroot()
 
 
-links = []
-joints = []
-
-# TODO check if we can get all elements in tree with tag
-for child in xml_root:
-    print(child.tag, child.attrib)
-    if child.tag == 'link':
-        links.append(child)
-    elif child.tag == 'joint':
-        joints.append(child)
-
-# findall()
-
-parents = []
-childern = []
-
-for joint in joints:
-    parents.append(joint.find('parent').attrib['link'])
-    childern.append(joint.find('child').attrib['link'])
+links = xml_root.findall('link')
+joints = xml_root.findall('joint')
 
 
-root_links = list(set(parents) - set(childern))
+def find_rootlinks(joints):
+    """Return all links that don't occur as child in any joint"""
+    parents = []
+    childern = []
+    for joint in joints:
+        parents.append(joint.find('parent').attrib['link'])
+        childern.append(joint.find('child').attrib['link'])
 
-print('p', parents)
-print('c', childern)
+    rootlinks = list(set(parents) - set(childern))
+    return rootlinks
 
-print('root_links', root_links)
+rootlinks = find_rootlinks(joints)
 
-
-def find_child_joints(joints, link):
-    # vindt alle joints met link als parent
-    
+def find_childjoints(joints, link):
+    """Returns all joints that contain the link as parent"""
     child_joints = []
-    
     for joint in joints:
         if joint.find('parent').attrib['link'] == link:
-            child_joints.append(joint)
-    return child_joints
+            childjoints.append(joint)
+    return childdjoints
         
+    
+def select_only(blender_object):
+    """Selects and actives a Blender object and deselects all others"""
+    bpy.ops.object.select_all(action='DESELECT')
+    bpy.context.view_layer.objects.active = blender_object
+    blender_object.select_set(True)
         
-def recurse(link, empty, bone):
-    child_joints = find_child_joints(joints, link)
+def add_childjoints(link, empty, bone):
+    childjoints = find_childjoints(joints, link)
     print(child_joints)
     for child_joint in child_joints:
-        bpy.ops.object.select_all(action='DESELECT')
-        bpy.context.view_layer.objects.active = empty
-        empty.select_set(True)
+        select_only(empty)
     
         bpy.ops.object.duplicate(linked=False, mode='TRANSLATION')
         new_empty = bpy.context.active_object
-        new_empty.name = child_joint.attrib['name']
+        new_empty.name = childjoint.attrib['name']
         
-        translation = [float(s) for s in child_joint.find('origin').attrib['xyz'].split()]
-        
+        translation = [float(s) for s in childjoint.find('origin').attrib['xyz'].split()]
         bpy.ops.transform.translate(value=translation, orient_type='LOCAL')
         
-        roll, pitch, yaw = [float(s) for s in child_joint.find('origin').attrib['rpy'].split()]
+        roll, pitch, yaw = [float(s) for s in childjoint.find('origin').attrib['rpy'].split()]
         
         print('rpy', roll, pitch, yaw)
         
@@ -104,12 +93,11 @@ def recurse(link, empty, bone):
         new_tail= bpy.context.active_object
         
         child_link = child_joint.find('child').attrib['link']
-        recurse(child_link, new_empty, new_tail)
+        #recurse(child_link, new_empty, new_tail)
     
 
 # TODO check spec whether multiple roots can even exist
-
-for root_link in root_links:
+for rootlink in rootlinks:
     bpy.ops.object.empty_add(type='ARROWS', align='WORLD', location=(0, 0, 0), scale=(1, 1, 1))
     bpy.context.object.empty_display_size = 0.2
     empty = bpy.context.active_object
@@ -117,13 +105,8 @@ for root_link in root_links:
     
     bpy.ops.object.armature_add(radius=1, enter_editmode=False, align='WORLD', location=(0, 0, -1), scale=(1, 1, 1))
     armature  = bpy.context.active_object
-    tail = armature.data.bones['Bone'].tail
-    recurse(root_link, empty, tail)
-        
-        
-    
-   
-            
+    bone = armature.data.bones['Bone']
+    recurse(rootlink, empty, bone)  
 
 
 # TODO 
