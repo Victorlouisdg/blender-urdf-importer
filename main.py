@@ -2,6 +2,7 @@ from os import path
 import xml.etree.ElementTree as ET
 import bpy
 import mathutils
+import numpy as np
 
 
 filepath = r'C:\Users\Administrator\Blender\urdf_testing\ur10.urdf'
@@ -59,6 +60,7 @@ def add_next_empty(empty, joint):
     new_empty.name = joint.attrib['name']
     
     translation = [float(s) for s in joint.find('origin').attrib['xyz'].split()]
+    
     bpy.ops.transform.translate(value=translation, orient_type='LOCAL')
     
     roll, pitch, yaw = [float(s) for s in joint.find('origin').attrib['rpy'].split()]    
@@ -76,16 +78,20 @@ def add_childjoints(link, empty, bone_name):
         armature_object = bpy.data.objects['Armature']
         select_only(armature_object)
         
-        bpy.ops.object.mode_set(mode='EDIT')
-        eb = armature_object.data.edit_bones.new('Bone')
-        eb.head = empty.location.xyz # if the head and tail are the same, the bone is deleted
-        eb.tail = new_empty.location.xyz 
-        new_bone_name = eb.name
+        # If there is no translation between the empties, no bone is added
+        if not np.allclose(empty.location.xyz, new_empty.location.xyz):
+            bpy.ops.object.mode_set(mode='EDIT')
+            eb = armature_object.data.edit_bones.new('Bone')
+            eb.head = empty.location.xyz
+            eb.tail = new_empty.location.xyz 
+            eb.parent = armature_object.data.edit_bones[bone_name]
+            bone_name = eb.name
+            bpy.ops.object.mode_set(mode='OBJECT')
         
-        bpy.ops.object.mode_set(mode='OBJECT')
+        empty = new_empty
         
         childlink = childjoint.find('child').attrib['link']
-        add_childjoints(childlink, new_empty, new_bone_name)
+        add_childjoints(childlink, empty, bone_name)
     
 
 # TODO check spec whether multiple roots can even exist
