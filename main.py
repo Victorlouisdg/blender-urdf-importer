@@ -68,35 +68,24 @@ def add_next_empty(empty, joint):
     return new_empty
     
         
-def add_childjoints(link, empty, bone):
+def add_childjoints(link, empty, bone_name):
     childjoints = find_childjoints(joints, link)
     for childjoint in childjoints:
         new_empty = add_next_empty(empty, childjoint)
         
-        print('MODE IS:', bpy.context.mode)
-       
         armature_object = bpy.data.objects['Armature']
         select_only(armature_object)
         
         bpy.ops.object.mode_set(mode='EDIT')
-
-        for b in armature_object.data.edit_bones: # deselect the other bones
-            b.select = False
-            b.select_tail = False
-            b.select_head = False
-
-        bone.select_tail = True
-                
-        bpy.ops.armature.extrude_move(TRANSFORM_OT_translate={"value":new_empty.location.xyz, "orient_matrix":((1, 0, 0), (0, 1, 0), (0, 0, 1)), "orient_matrix_type":'GLOBAL'})
-        
-        new_bone = 
+        eb = armature_object.data.edit_bones.new('Bone')
+        eb.head = empty.location.xyz # if the head and tail are the same, the bone is deleted
+        eb.tail = new_empty.location.xyz 
+        new_bone_name = eb.name
         
         bpy.ops.object.mode_set(mode='OBJECT')
-#        
-#        new_tail= bpy.context.active_object
-#        
-#        child_link = child_joint.find('child').attrib['link']
-        #recurse(child_link, new_empty, new_tail)
+        
+        childlink = childjoint.find('child').attrib['link']
+        add_childjoints(childlink, new_empty, new_bone_name)
     
 
 # TODO check spec whether multiple roots can even exist
@@ -107,13 +96,11 @@ for rootlink in rootlinks:
     empty = bpy.context.active_object
     empty.name = rootlink
     
-    bpy.ops.object.armature_add(radius=1, enter_editmode=False, align='WORLD', location=(0, 0, -1), scale=(1, 1, 1))
+    bpy.ops.object.armature_add(radius=1, enter_editmode=False, align='WORLD', location=(0, 0, 0), scale=(1, 1, 1))
     armature  = bpy.context.active_object
-    
-    bpy.ops.object.mode_set(mode='EDIT')
-    bone = armature.data.edit_bones['Bone']
-    bpy.ops.object.mode_set(mode='OBJECT')
-    add_childjoints(rootlink, empty, bone)  
+
+    bone_name = bpy.context.active_bone.name
+    add_childjoints(rootlink, empty, bone_name)  
 
 
 # TODO 
