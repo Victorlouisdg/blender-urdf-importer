@@ -5,8 +5,8 @@ import mathutils
 import numpy as np
 
 
-filepath = r'C:\Users\Administrator\Blender\urdf_testing\ur10.urdf'
-#filepath = '/home/victor/ur10.urdf'
+#filepath = r'C:\Users\Administrator\Blender\urdf_testing\ur10.urdf'
+filepath = '/home/victor/ur10.urdf'
 
 print(filepath)
 
@@ -45,7 +45,6 @@ def find_childjoints(joints, link):
     
 def select_only(blender_object):
     """Selects and actives a Blender object and deselects all others"""
-    print('MODE IS:', bpy.context.mode)
     bpy.ops.object.select_all(action='DESELECT')
     bpy.context.view_layer.objects.active = blender_object
     blender_object.select_set(True)
@@ -75,19 +74,25 @@ def add_childjoints(link, empty, bone_name):
     for childjoint in childjoints:
         new_empty = add_next_empty(empty, childjoint)
         
-        armature_object = bpy.data.objects['Armature']
-        select_only(armature_object)
+        armature = bpy.data.objects['Armature']
+        select_only(armature)
         
         # If there is no translation between the empties, no bone is added
         if not np.allclose(empty.location.xyz, new_empty.location.xyz):
+            # seperate 2 cases here: single translation and double translation
+            
+            # if joint is revolute and translation has multpi components: split components:
+            #translation = [float(s) for s in childjoint.find('origin').attrib['xyz'].split()]
+            
             bpy.ops.object.mode_set(mode='EDIT')
-            eb = armature_object.data.edit_bones.new('Bone')
+            eb = armature.data.edit_bones.new(childjoint.attrib['name'])
             eb.head = empty.location.xyz
             eb.tail = new_empty.location.xyz 
-            eb.parent = armature_object.data.edit_bones[bone_name]
+            eb.parent = armature.data.edit_bones[bone_name]
             bone_name = eb.name
             bpy.ops.object.mode_set(mode='OBJECT')
         
+        print(link, childjoint.attrib['type'], np.allclose(empty.location.xyz, new_empty.location.xyz))
         empty = new_empty
         
         childlink = childjoint.find('child').attrib['link']
@@ -102,52 +107,41 @@ for rootlink in rootlinks:
     empty = bpy.context.active_object
     empty.name = rootlink
     
-    bpy.ops.object.armature_add(radius=1, enter_editmode=False, align='WORLD', location=(0, 0, 0), scale=(1, 1, 1))
+    bpy.ops.object.armature_add(radius=0.01, enter_editmode=False, align='WORLD', location=(0, 0, 0), scale=(1, 1, 1))
     armature  = bpy.context.active_object
 
     bone_name = bpy.context.active_bone.name
     add_childjoints(rootlink, empty, bone_name)  
 
 
-# TODO 
+armature = bpy.data.objects['Armature']
+eef = armature.data.bones['wrist_3_joint']
+eef_y = eef.y_axis
+eef_position = eef.tail_local
 
+#sphere_pos = eef_position + 0.1 * eef.matrix @ eef_y
+#sphere_pos = eef_position + mathutils.Vector((0.0, 0.1, 0.0))
+#bpy.ops.mesh.primitive_ico_sphere_add(radius=0.05, enter_editmode=False, align='WORLD', location=sphere_pos, scale=(1, 1, 1))
+#sphere = bpy.context.active_object
 
-#for joint in joints:
-#    parent_link = joint.find('parent').attrib['link']
-#    child_link = joint.find('child').attrib['link']
-#    
-##for joint in joints:
-##    parent_link = joint.find('parent').attrib['link']
-##    child_link = joint.find('child').attrib['link']
-##    bpy.data.objects[child_link].parent = bpy.data.objects[parent_link]
-#    
-#    
-#for joint in joints:
-#    parent_link = joint.find('parent').attrib['link']
-#    child_link = joint.find('child').attrib['link']
+select_only(armature)
+bpy.ops.object.mode_set(mode='EDIT')
+eb = armature.data.edit_bones.new('TargetBone')
+eb.head = eef_position + mathutils.Vector((0.0, 0.1, 0.0))
+eb.tail = eef_position + mathutils.Vector((0.0, 0.1, 0.1))
 
-#    position = [float(s) for s in joint.find('origin').attrib['xyz'].split()]
-#    rotation = [float(s) for s in joint.find('origin').attrib['rpy'].split()]
+bpy.ops.object.mode_set(mode='POSE')
 
-#    eul = mathutils.Euler(rotation, 'XYZ')
-#    mat_rot = eul.to_matrix().to_4x4()
-#    
-#        
-#    print(bpy.data.objects[child_link].matrix_world)
-#    print(mat_rot.to_4x4())
-#    
-#    #bpy.data.objects[child_link].matrix_world = bpy.data.objects[child_link].matrix_world @ mat_rot
-#    
-#    bpy.ops.object.select_all(action='DESELECT')
-#    bpy.data.objects[child_link].select_set(True)
-#    #bpy.ops.transform.rotate(orient_matrix=mat_rot)
-#    #bpy.ops.transform.translate(value=position)
+armature.pose.bones['wrist_3_joint'].bone.select = True
+armature.pose.bones['wrist_3_joint'].constraints.new('IK')
+bpy.context.object.pose.bones["wrist_3_joint"].constraints["IK"].target = armature
+bpy.context.object.pose.bones["wrist_3_joint"].constraints["IK"].subtarget = "TargetBone"
 
-##    
-##    #bpys.objects[]
-##    
-#    
+for posebone in armature.pose.bones:
+    posebone.lock_ik_x = True
+    posebone.lock_ik_y = True
+    posebone.lock_ik_z = True
 
-#    
-#    
-#print('ok')
+bpy.ops.object.mode_set(mode='OBJECT')
+
+#bpy.context.object.pose.bones["shoulder_pan_joint"].lock_ik_y = False
