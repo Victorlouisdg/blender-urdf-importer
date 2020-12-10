@@ -60,7 +60,26 @@ def add_next_empty(empty, joint):
     new_empty.rotation_euler.rotate_axis("X", roll)
     new_empty.rotation_euler.rotate_axis("Y", pitch)
     new_empty.rotation_euler.rotate_axis("Z", yaw)
+    bpy.context.view_layer.update()
     return new_empty
+
+
+def load_geometry(visual):
+    geometry = visual.find('geometry')
+    mesh = geometry.find('mesh')
+    mesh_filename = mesh.attrib['filename']        
+    mesh_filename = mesh_filename.replace('package://', '/home/victor/catkin_ws/src/')
+    bpy.ops.wm.collada_import(filepath=mesh_filename)
+    objs = [ob for ob in bpy.context.scene.objects if ob.type in ('CAMERA', 'LIGHT')]
+    bpy.ops.object.delete({"selected_objects": objs})
+        
+    first_object = bpy.context.selected_objects[0]
+    #first_object.name = link.attrib['name']
+    
+    for obj in bpy.context.selected_objects[1:]:
+        obj.parent = first_object
+        
+    return first_object
 
 
 def add_childjoints(link, empty, bone_name):
@@ -68,20 +87,9 @@ def add_childjoints(link, empty, bone_name):
     for childjoint in childjoints:
         new_empty = add_next_empty(empty, childjoint)
         
-        
-        
         if childjoint.attrib['type'] == 'revolute':
-            print('rev', childjoint.find('axis').attrib['xyz'])
-            
             axis = mathutils.Vector([float(s) for s in childjoint.find('axis').attrib['xyz'].split()])
-#            print(axis)
-#            print(new_empty.matrix_world)
-#            print(new_empty.matrix_world.to_3x3())
-
             axis_world = new_empty.matrix_world.to_3x3() @ axis
-#            print(new_empty.matrix_world.to_translation())
-            print(new_empty.location)
-#            print(axis_world)
 
             armature = bpy.data.objects['Armature']
             select_only(armature)
@@ -95,8 +103,43 @@ def add_childjoints(link, empty, bone_name):
             
             
         empty = new_empty
-        childlink = childjoint.find('child').attrib['link']
-        add_childjoints(childlink, empty, bone_name)
+        childlink_name = childjoint.find('child').attrib['link']
+        
+        
+        # todo linkname -> link xml
+        for childlink in links:
+            if childlink.attrib['name'] == childlink_name:
+                break
+        
+        print(childlink, childlink.attrib)
+        
+        # TODO load geometry here
+        visual = childlink.find('visual')
+        print('visual', visual)
+        
+        
+        if visual:
+            object = load_geometry(visual)
+            select_only(object)
+            #object.location = new_empty.location
+            object.matrix_world = new_empty.matrix_world
+            object.name = 'DEFORM_' + childjoint.attrib['name']
+            bpy.context.scene.cursor.matrix = new_empty.matrix_world
+            
+            bpy.context.scene.transform_orientation_slots[0].type = 'CURSOR'
+            
+            
+            translation = [float(s) for s in visual.find('origin').attrib['xyz'].split()]
+            bpy.ops.transform.translate(value=translation, orient_type='CURSOR')
+            
+            roll, pitch, yaw = [float(s) for s in visual.find('origin').attrib['rpy'].split()]
+            
+            bpy.ops.transform.rotate(value=roll, orient_axis='X', orient_type='CURSOR')
+            bpy.ops.transform.rotate(value=pitch, orient_axis='Y', orient_type='CURSOR')
+            bpy.ops.transform.rotate(value=yaw, orient_axis='Z', orient_type='CURSOR')
+            bpy.context.view_layer.update()
+        
+        add_childjoints(childlink_name, empty, bone_name)
 
 for rootlink in rootlinks:
     bpy.ops.object.empty_add(type='ARROWS', align='WORLD', location=(0, 0, 0), scale=(1, 1, 1))
@@ -133,3 +176,14 @@ for posebone in armature.pose.bones:
     posebone.lock_ik_x = True
     posebone.lock_ik_y = False
     posebone.lock_ik_z = True
+    
+    
+bpy.ops.object.mode_set(mode='OBJECT')
+
+select_only(armature)
+
+for obj in bpy.data.objects:
+    if 'DEFORM' in obj.name:
+        obj.select_set(True)
+
+bpy.ops.object.parent_set(type='ARMATURE_NAME')
