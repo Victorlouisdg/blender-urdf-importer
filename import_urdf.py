@@ -151,6 +151,9 @@ for rootlink in rootlinks:
     armature  = bpy.context.active_object
 
     bone_name = bpy.context.active_bone.name
+    bpy.data.objects['Armature'].data.bones[bone_name].name = 'base_link-base_link_inertia'
+    bone_name = 'base_link-base_link_inertia'
+    
     add_childjoints(rootlink, empty, bone_name)
     
 
@@ -187,3 +190,24 @@ for obj in bpy.data.objects:
         obj.select_set(True)
 
 bpy.ops.object.parent_set(type='ARMATURE_NAME')
+
+def assign_vertices_to_group(object, groupname):
+    select_only(object)
+#    bpy.ops.object.mode_set(mode='EDIT')
+#    bpy.ops.mesh.select_all(action='SELECT')
+    
+    group = object.vertex_groups[groupname]
+    
+    indices = [v.index for v in bpy.context.selected_objects[0].data.vertices]
+    group.add(indices, 1.0, type='ADD')
+#    bpy.ops.object.vertex_group_assign()
+    
+for object in bpy.data.objects:
+    if 'DEFORM' in object.name:
+        groupname = object.name.split('DEFORM_')[1]
+        print(groupname)
+        assign_vertices_to_group(object, groupname)
+
+        # TODO assign all vertices to correct group
+        # for all childern:
+        # do the same
