@@ -70,16 +70,10 @@ def load_geometry(visual):
     mesh_filename = mesh.attrib['filename']        
     mesh_filename = mesh_filename.replace('package://', '/home/victor/catkin_ws/src/')
     bpy.ops.wm.collada_import(filepath=mesh_filename)
-    objs = [ob for ob in bpy.context.scene.objects if ob.type in ('CAMERA', 'LIGHT')]
-    bpy.ops.object.delete({"selected_objects": objs})
-        
-    first_object = bpy.context.selected_objects[0]
-    #first_object.name = link.attrib['name']
-    
-    for obj in bpy.context.selected_objects[1:]:
-        obj.parent = first_object
-        
-    return first_object
+    objects_to_delete = [ob for ob in bpy.context.scene.objects if ob.type in ('CAMERA', 'LIGHT')]
+    bpy.ops.object.delete({"selected_objects": objects_to_delete})
+    objects = bpy.context.selected_objects
+    return objects
 
 
 def add_childjoints(link, empty, bone_name):
@@ -106,38 +100,31 @@ def add_childjoints(link, empty, bone_name):
         childlink_name = childjoint.find('child').attrib['link']
         
         
-        # todo linkname -> link xml
+        # Find the childlink xml object
         for childlink in links:
             if childlink.attrib['name'] == childlink_name:
                 break
         
-        print(childlink, childlink.attrib)
-        
-        # TODO load geometry here
         visual = childlink.find('visual')
-        print('visual', visual)
-        
         
         if visual:
-            object = load_geometry(visual)
-            select_only(object)
-            #object.location = new_empty.location
-            object.matrix_world = new_empty.matrix_world
-            object.name = 'DEFORM_' + childjoint.attrib['name']
-            bpy.context.scene.cursor.matrix = new_empty.matrix_world
+            objects = load_geometry(visual)
             
-            bpy.context.scene.transform_orientation_slots[0].type = 'CURSOR'
-            
-            
-            translation = [float(s) for s in visual.find('origin').attrib['xyz'].split()]
-            bpy.ops.transform.translate(value=translation, orient_type='CURSOR')
-            
-            roll, pitch, yaw = [float(s) for s in visual.find('origin').attrib['rpy'].split()]
-            
-            bpy.ops.transform.rotate(value=roll, orient_axis='X', orient_type='CURSOR')
-            bpy.ops.transform.rotate(value=pitch, orient_axis='Y', orient_type='CURSOR')
-            bpy.ops.transform.rotate(value=yaw, orient_axis='Z', orient_type='CURSOR')
-            bpy.context.view_layer.update()
+            for i, object in enumerate(objects):
+                select_only(object)
+                object.matrix_world = new_empty.matrix_world
+                object.name = 'DEFORM__' + childjoint.attrib['name'] + '__' + str(i)
+                bpy.context.scene.cursor.matrix = new_empty.matrix_world
+                
+                translation = [float(s) for s in visual.find('origin').attrib['xyz'].split()]
+                bpy.ops.transform.translate(value=translation, orient_type='CURSOR')
+                
+                roll, pitch, yaw = [float(s) for s in visual.find('origin').attrib['rpy'].split()]
+                
+                bpy.ops.transform.rotate(value=roll, orient_axis='X', orient_type='CURSOR')
+                bpy.ops.transform.rotate(value=pitch, orient_axis='Y', orient_type='CURSOR')
+                bpy.ops.transform.rotate(value=yaw, orient_axis='Z', orient_type='CURSOR')
+                bpy.context.view_layer.update()
         
         add_childjoints(childlink_name, empty, bone_name)
 
@@ -185,29 +172,24 @@ bpy.ops.object.mode_set(mode='OBJECT')
 
 select_only(armature)
 
-for obj in bpy.data.objects:
-    if 'DEFORM' in obj.name:
-        obj.select_set(True)
+for object in bpy.data.objects:
+    if 'DEFORM' in object.name:
+        object.select_set(True)
 
+            
 bpy.ops.object.parent_set(type='ARMATURE_NAME')
 
 def assign_vertices_to_group(object, groupname):
     select_only(object)
-#    bpy.ops.object.mode_set(mode='EDIT')
-#    bpy.ops.mesh.select_all(action='SELECT')
-    
     group = object.vertex_groups[groupname]
-    
     indices = [v.index for v in bpy.context.selected_objects[0].data.vertices]
     group.add(indices, 1.0, type='ADD')
-#    bpy.ops.object.vertex_group_assign()
+
     
 for object in bpy.data.objects:
     if 'DEFORM' in object.name:
-        groupname = object.name.split('DEFORM_')[1]
-        print(groupname)
+        print(object.name.split('__'))
+        groupname = object.name.split('__')[1]
+        print('gn', groupname)
+        
         assign_vertices_to_group(object, groupname)
-
-        # TODO assign all vertices to correct group
-        # for all childern:
-        # do the same
