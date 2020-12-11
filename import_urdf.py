@@ -39,7 +39,7 @@ def add_next_empty(empty, joint):
     
     bpy.ops.object.duplicate()
     new_empty = bpy.context.active_object
-    new_empty.name = joint.attrib['name']
+    new_empty.name = 'TF_' + joint.attrib['name']
     
     translation = [float(s) for s in joint.find('origin').attrib['xyz'].split()]
     bpy.ops.transform.translate(value=translation, orient_type='LOCAL')
@@ -117,8 +117,10 @@ def add_childjoints(armature, link, empty, parent_bone_name):
         visual = childlink.find('visual')
         
         if visual:
+            print(childjoint.attrib['name'], childlink.attrib['name'])
             objects = load_geometry(visual)
-            position_link_objects(visual, objects, new_empty, childjoint.attrib['name'])
+            # name given here determines vertex group
+            position_link_objects(visual, objects, new_empty, bone_name)
         
         add_childjoints(armature, childlink_name, new_empty, bone_name)
 
@@ -140,7 +142,7 @@ for rootlink in rootlinks:
     bpy.ops.object.empty_add(type='ARROWS', align='WORLD', location=(0, 0, 0), scale=(1, 1, 1))
     bpy.context.object.empty_display_size = 0.2
     empty = bpy.context.active_object
-    empty.name = rootlink
+    empty.name = 'TF_' + rootlink
     
     bpy.ops.object.armature_add(radius=0.05, enter_editmode=False, align='WORLD', location=(0, 0, 0), scale=(1, 1, 1))    
     armature = bpy.context.active_object
@@ -182,6 +184,8 @@ for posebone in armature.pose.bones:
     posebone.lock_ik_y = False
     posebone.lock_ik_z = True
     
+armature.pose.bones['root'].lock_ik_y = True
+    
     
 bpy.ops.object.mode_set(mode='OBJECT')
 
@@ -203,6 +207,14 @@ def assign_vertices_to_group(object, groupname):
 
     
 for object in bpy.data.objects:
-    if 'DEFORM' in object.name:
+    if 'DEFORM__' in object.name:
         groupname = object.name.split('__')[1]
         assign_vertices_to_group(object, groupname)
+        
+
+# Delete the empties
+bpy.ops.object.select_all(action='DESELECT') 
+for object in bpy.data.objects:
+    if 'TF_' in object.name:
+        object.select_set(True)
+bpy.ops.object.delete() 
