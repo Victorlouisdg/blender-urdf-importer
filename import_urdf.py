@@ -1,4 +1,4 @@
-from os import path
+import os
 import xml.etree.ElementTree as ET
 import bpy
 import mathutils
@@ -51,14 +51,38 @@ def add_next_empty(empty, joint):
     bpy.context.view_layer.update()
     return new_empty
 
+def parse_mesh_filename(mesh_filename):
+    """This function will return the mesh path if it can be found, else throw an error"""
+    if os.path.exists(mesh_filename):
+        return mesh_filename
+    
+    if 'package://' in mesh_filename:
+        ros_package_paths = os.environ.get('ROS_PACKAGE_PATH')
+        if ros_package_paths is None or True:
+            error_msg = (
+                'Your urdf file references a mesh file from a ROS package: \n'
+                f'{mesh_filename}\n'
+                'However, the ROS_PACKAGE_PATH environment variable is not set ' 
+                'so we cannot find it.'
+            )
+            print(error_msg)
+            # TODO throw error
+            
+        ros_package_paths = ros_package_paths.split(':')
+        for ros_package_path in ros_package_paths:
+            filepath_partial = mesh_filename.replace('package://', '')
+            filepath = os.path.join(ros_package_path, filepath_partial)
+            if os.path.exists(filepath):
+                return filepath
+        # TODO if we get here, throw an error
+
 
 def load_geometry(visual):
     geometry = visual.find('geometry')
     mesh = geometry.find('mesh')
     mesh_filename = mesh.attrib['filename']
-    # TODO fix this, maybe by using rospack or ENV variable
-    mesh_filename = mesh_filename.replace('package://', '/home/victor/catkin_ws/src/')
-    bpy.ops.wm.collada_import(filepath=mesh_filename)
+    mesh_path = parse_mesh_filename(mesh_filename)
+    bpy.ops.wm.collada_import(filepath=mesh_path)
     objects_to_delete = [o for o in bpy.context.scene.objects if o.type in ('CAMERA', 'LIGHT')]
     bpy.ops.object.delete({"selected_objects": objects_to_delete})
     objects = bpy.context.selected_objects
@@ -115,20 +139,16 @@ def add_childjoints(armature, link, empty, parent_bone_name):
                 break
         
         visual = childlink.find('visual')
-        
         if visual:
-            print(childjoint.attrib['name'], childlink.attrib['name'])
             objects = load_geometry(visual)
-            # name given here determines vertex group
             position_link_objects(visual, objects, new_empty, bone_name)
         
         add_childjoints(armature, childlink_name, new_empty, bone_name)
 
 
-
 filepath = '/home/victor/ur10.urdf'
 
-if not path.exists(filepath):
+if not os.path.exists(filepath):
     print('File does not exist')
 
 tree = ET.parse(filepath)
@@ -147,9 +167,7 @@ for rootlink in rootlinks:
     bpy.ops.object.armature_add(radius=0.05, enter_editmode=False, align='WORLD', location=(0, 0, 0), scale=(1, 1, 1))    
     armature = bpy.context.active_object
 
-    bone_name = 'root' #'base_link-base_link_inertia'
-    # find joint with rootlink as parent
-    
+    bone_name = 'root'
     bpy.context.active_bone.name = bone_name
 
     add_childjoints(armature, rootlink, empty, bone_name)
@@ -218,3 +236,4 @@ for object in bpy.data.objects:
     if 'TF_' in object.name:
         object.select_set(True)
 bpy.ops.object.delete() 
+bpy.ops.view3d.snap_cursor_to_center()
