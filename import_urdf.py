@@ -58,7 +58,7 @@ def parse_mesh_filename(mesh_filename):
     
     if 'package://' in mesh_filename:
         ros_package_paths = os.environ.get('ROS_PACKAGE_PATH')
-        if ros_package_paths is None or True:
+        if ros_package_paths is None:
             error_msg = (
                 'Your urdf file references a mesh file from a ROS package: \n'
                 f'{mesh_filename}\n'
@@ -72,9 +72,13 @@ def parse_mesh_filename(mesh_filename):
         for ros_package_path in ros_package_paths:
             filepath_partial = mesh_filename.replace('package://', '')
             filepath = os.path.join(ros_package_path, filepath_partial)
+            # PROBLEM: ur_description is inside /universal_robot/
+            print(filepath, os.path.exists(filepath))
             if os.path.exists(filepath):
                 return filepath
-        # TODO if we get here, throw an error
+        
+    print('Cant find the mesh file :(')
+    # TODO if we get here, throw an error
 
 
 def load_geometry(visual):
@@ -122,7 +126,7 @@ def position_link_objects(visual, objects, empty, joint_name):
         bpy.context.view_layer.update()
 
 
-def add_childjoints(armature, link, empty, parent_bone_name):
+def add_childjoints(armature, joints, links, link, empty, parent_bone_name):
     childjoints = find_childjoints(joints, link)
     for childjoint in childjoints:
         new_empty = add_next_empty(empty, childjoint)
@@ -143,79 +147,9 @@ def add_childjoints(armature, link, empty, parent_bone_name):
             objects = load_geometry(visual)
             position_link_objects(visual, objects, new_empty, bone_name)
         
-        add_childjoints(armature, childlink_name, new_empty, bone_name)
+        add_childjoints(armature, joints, links, childlink_name, new_empty, bone_name)
 
 
-filepath = '/home/victor/ur10.urdf'
-
-if not os.path.exists(filepath):
-    print('File does not exist')
-
-tree = ET.parse(filepath)
-xml_root = tree.getroot()
-
-links = xml_root.findall('link')
-joints = xml_root.findall('joint')
-rootlinks = find_rootlinks(joints)
-
-for rootlink in rootlinks:
-    bpy.ops.object.empty_add(type='ARROWS', align='WORLD', location=(0, 0, 0), scale=(1, 1, 1))
-    bpy.context.object.empty_display_size = 0.2
-    empty = bpy.context.active_object
-    empty.name = 'TF_' + rootlink
-    
-    bpy.ops.object.armature_add(radius=0.05, enter_editmode=False, align='WORLD', location=(0, 0, 0), scale=(1, 1, 1))    
-    armature = bpy.context.active_object
-
-    bone_name = 'root'
-    bpy.context.active_bone.name = bone_name
-
-    add_childjoints(armature, rootlink, empty, bone_name)
-    
-
-# Adding and locking the IK
-armature = bpy.data.objects['Armature']
-eef = armature.data.bones['wrist_3_joint']
-eef_position = eef.tail_local
-
-select_only(armature)
-bpy.ops.object.mode_set(mode='EDIT')
-eb = armature.data.edit_bones.new('target_bone')
-eef_forward = mathutils.Vector(eef.matrix_local[1][0:3])
-print(eef.matrix_local)
-print(eef_forward)
-
-eb.head = eef_position
-eb.tail = eef_position + 0.1 * eef_forward
-
-bpy.ops.object.mode_set(mode='POSE')
-
-armature.pose.bones['wrist_3_joint'].bone.select = True
-armature.pose.bones['wrist_3_joint'].constraints.new('IK')
-bpy.context.object.pose.bones["wrist_3_joint"].constraints["IK"].target = armature
-bpy.context.object.pose.bones["wrist_3_joint"].constraints["IK"].subtarget = "target_bone"
-bpy.context.object.pose.bones["wrist_3_joint"].constraints["IK"].use_rotation = True
-
-
-for posebone in armature.pose.bones:
-    posebone.lock_ik_x = True
-    posebone.lock_ik_y = False
-    posebone.lock_ik_z = True
-    
-armature.pose.bones['root'].lock_ik_y = True
-    
-    
-bpy.ops.object.mode_set(mode='OBJECT')
-
-select_only(armature)
-
-for object in bpy.data.objects:
-    if 'DEFORM' in object.name:
-        object.select_set(True)
-
-        
-bpy.ops.object.shade_flat()            
-bpy.ops.object.parent_set(type='ARMATURE_NAME')
 
 def assign_vertices_to_group(object, groupname):
     select_only(object)
@@ -223,17 +157,93 @@ def assign_vertices_to_group(object, groupname):
     indices = [v.index for v in bpy.context.selected_objects[0].data.vertices]
     group.add(indices, 1.0, type='ADD')
 
-    
-for object in bpy.data.objects:
-    if 'DEFORM__' in object.name:
-        groupname = object.name.split('__')[1]
-        assign_vertices_to_group(object, groupname)
+
+def import_urdf(filepath):
+    if not os.path.exists(filepath):
+        print('File does not exist')
+
+    tree = ET.parse(filepath)
+    xml_root = tree.getroot()
+
+    links = xml_root.findall('link')
+    joints = xml_root.findall('joint')
+    rootlinks = find_rootlinks(joints)
+
+    for rootlink in rootlinks:
+        bpy.ops.object.empty_add(type='ARROWS', align='WORLD', location=(0, 0, 0), scale=(1, 1, 1))
+        bpy.context.object.empty_display_size = 0.2
+        empty = bpy.context.active_object
+        empty.name = 'TF_' + rootlink
+        
+        bpy.ops.object.armature_add(radius=0.05, enter_editmode=False, align='WORLD', location=(0, 0, 0), scale=(1, 1, 1))    
+        armature = bpy.context.active_object
+
+        bone_name = 'root'
+        bpy.context.active_bone.name = bone_name
+
+        add_childjoints(armature, joints, links, rootlink, empty, bone_name)
         
 
-# Delete the empties
-bpy.ops.object.select_all(action='DESELECT') 
-for object in bpy.data.objects:
-    if 'TF_' in object.name:
-        object.select_set(True)
-bpy.ops.object.delete() 
-bpy.ops.view3d.snap_cursor_to_center()
+    # Adding and locking the IK
+    armature = bpy.data.objects['Armature']
+    eef = armature.data.bones['wrist_3_joint']
+    eef_position = eef.tail_local
+
+    select_only(armature)
+    bpy.ops.object.mode_set(mode='EDIT')
+    eb = armature.data.edit_bones.new('target_bone')
+    eef_forward = mathutils.Vector(eef.matrix_local[1][0:3])
+    print(eef.matrix_local)
+    print(eef_forward)
+
+    eb.head = eef_position
+    eb.tail = eef_position + 0.1 * eef_forward
+
+    bpy.ops.object.mode_set(mode='POSE')
+
+    armature.pose.bones['wrist_3_joint'].bone.select = True
+    armature.pose.bones['wrist_3_joint'].constraints.new('IK')
+    bpy.context.object.pose.bones["wrist_3_joint"].constraints["IK"].target = armature
+    bpy.context.object.pose.bones["wrist_3_joint"].constraints["IK"].subtarget = "target_bone"
+    bpy.context.object.pose.bones["wrist_3_joint"].constraints["IK"].use_rotation = True
+
+
+    for posebone in armature.pose.bones:
+        posebone.lock_ik_x = True
+        posebone.lock_ik_y = False
+        posebone.lock_ik_z = True
+        
+    armature.pose.bones['root'].lock_ik_y = True
+        
+        
+    bpy.ops.object.mode_set(mode='OBJECT')
+
+    select_only(armature)
+
+    for object in bpy.data.objects:
+        if 'DEFORM' in object.name:
+            object.select_set(True)
+
+            
+    bpy.ops.object.shade_flat()            
+    bpy.ops.object.parent_set(type='ARMATURE_NAME')
+
+
+        
+    for object in bpy.data.objects:
+        if 'DEFORM__' in object.name:
+            groupname = object.name.split('__')[1]
+            assign_vertices_to_group(object, groupname)
+            
+
+    # Delete the empties
+    bpy.ops.object.select_all(action='DESELECT') 
+    for object in bpy.data.objects:
+        if 'TF_' in object.name:
+            object.select_set(True)
+    bpy.ops.object.delete() 
+    bpy.ops.view3d.snap_cursor_to_center()
+    
+if __name__ == '__main__':
+    filepath = '/home/idlab185/ur10.urdf'
+    import_urdf(filepath)
