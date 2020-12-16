@@ -1,4 +1,5 @@
-from .import_urdf import import_urdf
+from . import import_urdf
+import bpy
 from bpy_extras.io_utils import ImportHelper 
 from bpy.types import Operator
 
@@ -36,4 +37,7 @@ classes = (
 register, unregister = bpy.utils.register_classes_factory(classes)
 
 if __name__ == '__main__':
+    import os
+    print(__package__)
+    print(os.getcwd())
     register()

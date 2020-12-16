@@ -1,4 +1,5 @@
 import os
+import glob
 import xml.etree.ElementTree as ET
 import bpy
 import mathutils
@@ -70,12 +71,21 @@ def parse_mesh_filename(mesh_filename):
             
         ros_package_paths = ros_package_paths.split(':')
         for ros_package_path in ros_package_paths:
-            filepath_partial = mesh_filename.replace('package://', '')
-            filepath = os.path.join(ros_package_path, filepath_partial)
-            # PROBLEM: ur_description is inside /universal_robot/
-            print(filepath, os.path.exists(filepath))
-            if os.path.exists(filepath):
-                return filepath
+            filepath_package = mesh_filename.replace('package://', '')
+            
+            filepath_split = filepath_package.split('/')
+            package_name = filepath_split[0]
+            filepath_in_package = os.path.join(*filepath_split[1:])
+            
+            print('PACKAGE_NAME', package_name)
+            
+            # TODO recursive search in ros_package_path for package_path
+            for package_path in glob.glob(ros_package_path + '/**/' + package_name):
+                filepath = os.path.join(package_path, filepath_in_package)
+
+                print(filepath, os.path.exists(filepath))
+                if os.path.exists(filepath):
+                    return filepath
         
     print('Cant find the mesh file :(')
     # TODO if we get here, throw an error
@@ -206,6 +216,7 @@ def import_urdf(filepath):
     bpy.context.object.pose.bones["wrist_3_joint"].constraints["IK"].target = armature
     bpy.context.object.pose.bones["wrist_3_joint"].constraints["IK"].subtarget = "target_bone"
     bpy.context.object.pose.bones["wrist_3_joint"].constraints["IK"].use_rotation = True
+    bpy.context.object.pose.ik_solver = 'ITASC'
 
 
     for posebone in armature.pose.bones:
@@ -228,8 +239,6 @@ def import_urdf(filepath):
     bpy.ops.object.shade_flat()            
     bpy.ops.object.parent_set(type='ARMATURE_NAME')
 
-
-        
     for object in bpy.data.objects:
         if 'DEFORM__' in object.name:
             groupname = object.name.split('__')[1]
@@ -242,7 +251,9 @@ def import_urdf(filepath):
         if 'TF_' in object.name:
             object.select_set(True)
     bpy.ops.object.delete() 
-    bpy.ops.view3d.snap_cursor_to_center()
+    
+    #bpy.context.area.type = 'VIEW_3D'
+    #bpy.ops.view3d.snap_cursor_to_center()
     
 if __name__ == '__main__':
     filepath = '/home/idlab185/ur10.urdf'
