@@ -5,8 +5,8 @@ bl_info = {
     'author': "Victor-Louis De Gusseme",
     'version': (0, 1),
     'blender': (2, 80, 0),
-    'location': "View3D > Tool Shelf"
-    'wiki_url': '',
+    'location': "View3D > Tool Shelf",
+    'wiki_url': 'https://github.com/Victorlouisdg/blender-urdf-importer',
     'support': "COMMUNITY",
     'category': "Import"
 }

@@ -41,14 +41,19 @@ def add_next_empty(empty, joint):
     bpy.ops.object.duplicate()
     new_empty = bpy.context.active_object
     new_empty.name = 'TF_' + joint.attrib['name']
+
     
     translation = [float(s) for s in joint.find('origin').attrib['xyz'].split()]
     bpy.ops.transform.translate(value=translation, orient_type='LOCAL')
+
+    bpy.context.scene.cursor.matrix = new_empty.matrix_world
     
     roll, pitch, yaw = [float(s) for s in joint.find('origin').attrib['rpy'].split()]    
-    new_empty.rotation_euler.rotate_axis("X", roll)
-    new_empty.rotation_euler.rotate_axis("Y", pitch)
-    new_empty.rotation_euler.rotate_axis("Z", yaw)
+
+    bpy.ops.transform.rotate(value=roll, orient_axis='X', orient_type='CURSOR')
+    bpy.ops.transform.rotate(value=pitch, orient_axis='Y', orient_type='CURSOR')
+    bpy.ops.transform.rotate(value=yaw, orient_axis='Z', orient_type='CURSOR')
+
     bpy.context.view_layer.update()
     return new_empty
 
@@ -94,6 +99,8 @@ def parse_mesh_filename(mesh_filename):
 def load_geometry(visual):
     geometry = visual.find('geometry')
     mesh = geometry.find('mesh')
+    if mesh is None:
+        return []
     mesh_filename = mesh.attrib['filename']
     mesh_path = parse_mesh_filename(mesh_filename)
     bpy.ops.wm.collada_import(filepath=mesh_path)
@@ -168,6 +175,56 @@ def assign_vertices_to_group(object, groupname):
     group.add(indices, 1.0, type='ADD')
 
 
+def add_inverse_kinematics(bone_name):
+    # Adding and locking the IK
+    armature = bpy.data.objects['Armature']
+    eef = armature.data.bones[bone_name]
+    eef_position = eef.tail_local
+
+    select_only(armature)
+    bpy.ops.object.mode_set(mode='EDIT')
+    target_bone_name = bone_name + '_target'
+    eb = armature.data.edit_bones.new(target_bone_name)
+    eef_forward = mathutils.Vector(eef.matrix_local.col[1][0:3])
+
+    eb.head = eef_position
+    eb.tail = eef_position + 0.1 * eef_forward
+
+    bpy.ops.object.mode_set(mode='POSE')
+
+    armature.pose.bones[bone_name].bone.select = True
+    armature.pose.bones[bone_name].constraints.new('IK')
+    bpy.context.object.pose.bones[bone_name].constraints["IK"].target = armature
+    bpy.context.object.pose.bones[bone_name].constraints["IK"].subtarget = target_bone_name
+    bpy.context.object.pose.bones[bone_name].constraints["IK"].use_rotation = True
+    bpy.context.object.pose.ik_solver = 'ITASC'
+
+
+    for posebone in armature.pose.bones:
+        posebone.lock_ik_x = True
+        posebone.lock_ik_y = False
+        posebone.lock_ik_z = True
+        
+    armature.pose.bones['root'].lock_ik_y = True
+        
+        
+    bpy.ops.object.mode_set(mode='OBJECT')
+
+    select_only(armature)
+
+    for object in bpy.data.objects:
+        if 'DEFORM__' in object.name:
+            object.select_set(True)
+
+            
+    bpy.ops.object.shade_flat()            
+    bpy.ops.object.parent_set(type='ARMATURE_NAME')
+
+    for object in bpy.data.objects:
+        if 'DEFORM__' in object.name:
+            groupname = object.name.split('__')[1]
+            assign_vertices_to_group(object, groupname)
+
 def import_urdf(filepath):
     if not os.path.exists(filepath):
         print('File does not exist')
@@ -194,56 +251,10 @@ def import_urdf(filepath):
         add_childjoints(armature, joints, links, rootlink, empty, bone_name)
         
 
-    # Adding and locking the IK
-    armature = bpy.data.objects['Armature']
-    eef = armature.data.bones['wrist_3_joint']
-    eef_position = eef.tail_local
-
-    select_only(armature)
-    bpy.ops.object.mode_set(mode='EDIT')
-    eb = armature.data.edit_bones.new('target_bone')
-    eef_forward = mathutils.Vector(eef.matrix_local[1][0:3])
-    print(eef.matrix_local)
-    print(eef_forward)
-
-    eb.head = eef_position
-    eb.tail = eef_position + 0.1 * eef_forward
-
-    bpy.ops.object.mode_set(mode='POSE')
-
-    armature.pose.bones['wrist_3_joint'].bone.select = True
-    armature.pose.bones['wrist_3_joint'].constraints.new('IK')
-    bpy.context.object.pose.bones["wrist_3_joint"].constraints["IK"].target = armature
-    bpy.context.object.pose.bones["wrist_3_joint"].constraints["IK"].subtarget = "target_bone"
-    bpy.context.object.pose.bones["wrist_3_joint"].constraints["IK"].use_rotation = True
-    bpy.context.object.pose.ik_solver = 'ITASC'
-
-
-    for posebone in armature.pose.bones:
-        posebone.lock_ik_x = True
-        posebone.lock_ik_y = False
-        posebone.lock_ik_z = True
-        
-    armature.pose.bones['root'].lock_ik_y = True
-        
-        
-    bpy.ops.object.mode_set(mode='OBJECT')
-
-    select_only(armature)
-
-    for object in bpy.data.objects:
-        if 'DEFORM' in object.name:
-            object.select_set(True)
-
-            
-    bpy.ops.object.shade_flat()            
-    bpy.ops.object.parent_set(type='ARMATURE_NAME')
-
-    for object in bpy.data.objects:
-        if 'DEFORM__' in object.name:
-            groupname = object.name.split('__')[1]
-            assign_vertices_to_group(object, groupname)
-            
+    
+    # todo
+    add_inverse_kinematics('left_w2')
+    add_inverse_kinematics('right_w2')
 
     # Delete the empties
     bpy.ops.object.select_all(action='DESELECT') 
