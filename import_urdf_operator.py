@@ -12,6 +12,8 @@ class URDF_OT_FilebrowserImporter(Operator, ImportHelper):
     def execute(self, context): 
         """Do something with the selected file(s).""" 
         print(self.filepath)
+        print('no import error! yay :D')
+        import_urdf.import_urdf(self.filepath)
         return {'FINISHED'}
     
     
@@ -26,18 +28,3 @@ class URDF_PT_Import(bpy.types.Panel):
         row = layout.row()
         row.operator('import.urdf_filebrowser', icon='IMPORT')
 
-
-
-    
-classes = (
-    URDF_OT_FilebrowserImporter,
-    URDF_PT_Import,
-)
-
-register, unregister = bpy.utils.register_classes_factory(classes)
-
-if __name__ == '__main__':
-    import os
-    print(__package__)
-    print(os.getcwd())
-    register()

@@ -5,8 +5,7 @@ bl_info = {
     'author': "Victor-Louis De Gusseme",
     'version': (0, 1),
     'blender': (2, 80, 0),
-    'location': "View3D > Tool Shelf > Lightfield || "
-                "Properties > Data",
+    'location': "View3D > Tool Shelf"
     'wiki_url': '',
     'support': "COMMUNITY",
     'category': "Import"
@@ -44,10 +43,9 @@ def make_annotations(cls):
 
 # All classes to register.
 classes = (
-    URDF_OT_FilebrowserImporter,
-    URDF_PT_Import,
+    import_urdf_operator.URDF_OT_FilebrowserImporter,
+    import_urdf_operator.URDF_PT_Import,
 )
-
 
 # Register all classes + the collection property for storing lightfields
 def register():
@@ -56,25 +54,10 @@ def register():
         make_annotations(cls)
         bpy.utils.register_class(cls)
 
-    # Properties
-    # bpy.types.Scene.lightfield = bpy.props.CollectionProperty(type=lightfield.LightfieldPropertyGroup)
-    # bpy.types.Scene.lightfield_index = bpy.props.IntProperty(default=-1)
 
-    # Menus
-    #bpy.types.VIEW3D_MT_add.append(gui.add_lightfield)
-
-
-
-# Unregister all classes + the collection property for storing lightfields
+# Unregister all classes
 # This is done in reverse to 'pop the register stack'.
 def unregister():
-    # Remove items from menu
-    #bpy.types.VIEW3D_MT_add.remove(gui.add_lightfield)
-
-    # Remove properties
-    # del bpy.types.Scene.lightfield_index
-    # del bpy.types.Scene.lightfield
-
     # Unregister classes
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
