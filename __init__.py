@@ -47,12 +47,17 @@ classes = (
     import_urdf_operator.URDF_PT_Import,
 )
 
+def menu_func_import(self, context):
+    self.layout.operator(import_urdf_operator.URDF_OT_FilebrowserImporter.bl_idname, text="URDF (.urdf)")
+
 # Register all classes + the collection property for storing lightfields
 def register():
     # Classes
     for cls in classes:
         make_annotations(cls)
         bpy.utils.register_class(cls)
+
+    bpy.types.TOPBAR_MT_file_import.append(menu_func_import)
 
 
 # Unregister all classes
@@ -61,3 +66,5 @@ def unregister():
     # Unregister classes
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
+
+    bpy.types.TOPBAR_MT_file_import.remove(menu_func_import)

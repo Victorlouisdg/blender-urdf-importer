@@ -57,6 +57,7 @@ def add_next_empty(empty, joint):
     bpy.context.view_layer.update()
     return new_empty
 
+
 def parse_mesh_filename(mesh_filename):
     """This function will return the mesh path if it can be found, else throw an error"""
     if os.path.exists(mesh_filename):
@@ -81,8 +82,6 @@ def parse_mesh_filename(mesh_filename):
             filepath_split = filepath_package.split('/')
             package_name = filepath_split[0]
             filepath_in_package = os.path.join(*filepath_split[1:])
-            
-            print('PACKAGE_NAME', package_name)
             
             # TODO recursive search in ros_package_path for package_path
             for package_path in glob.glob(ros_package_path + '/**/' + package_name):
@@ -181,40 +180,11 @@ def add_childjoints(armature, joints, links, link, empty, parent_bone_name):
         add_childjoints(armature, joints, links, childlink_name, new_empty, bone_name)
 
 
-
 def assign_vertices_to_group(object, groupname):
     select_only(object)
     group = object.vertex_groups[groupname]
     indices = [v.index for v in bpy.context.selected_objects[0].data.vertices]
     group.add(indices, 1.0, type='ADD')
-
-
-def add_inverse_kinematics(bone_name):
-    # Adding and locking the IK
-    armature = bpy.data.objects['Armature']
-    eef = armature.data.bones[bone_name]
-    eef_position = eef.tail_local
-
-    select_only(armature)
-    bpy.ops.object.mode_set(mode='EDIT')
-    target_bone_name = bone_name + '_target'
-    eb = armature.data.edit_bones.new(target_bone_name)
-    eef_forward = mathutils.Vector(eef.matrix_local.col[1][0:3])
-
-    eb.head = eef_position
-    eb.tail = eef_position + 0.1 * eef_forward
-
-    bpy.ops.object.mode_set(mode='POSE')
-
-    armature.pose.bones[bone_name].bone.select = True
-    armature.pose.bones[bone_name].constraints.new('IK')
-    bpy.context.object.pose.bones[bone_name].constraints["IK"].target = armature
-    bpy.context.object.pose.bones[bone_name].constraints["IK"].subtarget = target_bone_name
-    bpy.context.object.pose.bones[bone_name].constraints["IK"].use_rotation = True
-    bpy.context.object.pose.ik_solver = 'ITASC'               
-        
-    bpy.ops.object.mode_set(mode='OBJECT')
-
 
 
 
@@ -249,12 +219,6 @@ def import_urdf(filepath):
         bpy.ops.object.mode_set(mode='OBJECT')
 
         add_childjoints(armature, joints, links, rootlink, empty, bone_name)
-        
-
-        # todo
-        # add_inverse_kinematics('left_w2')
-        # add_inverse_kinematics('right_w2')
-
 
         ## Skinning
         select_only(armature)
@@ -279,8 +243,6 @@ def import_urdf(filepath):
                 object.select_set(True)
         bpy.ops.object.delete() 
     
-    #bpy.context.area.type = 'VIEW_3D'
-    #bpy.ops.view3d.snap_cursor_to_center()
     
 if __name__ == '__main__':
     filepath = '/home/idlab185/ur10.urdf'
