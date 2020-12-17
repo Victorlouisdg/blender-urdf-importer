@@ -95,11 +95,7 @@ def parse_mesh_filename(mesh_filename):
     # TODO if we get here, throw an error
 
 
-def load_geometry(visual):
-    geometry = visual.find('geometry')
-    mesh = geometry.find('mesh')
-    if mesh is None:
-        return []
+def load_mesh(mesh):
     mesh_filename = mesh.attrib['filename']
     mesh_path = parse_mesh_filename(mesh_filename)
     bpy.ops.wm.collada_import(filepath=mesh_path)
@@ -107,6 +103,24 @@ def load_geometry(visual):
     bpy.ops.object.delete({"selected_objects": objects_to_delete})
     objects = bpy.context.selected_objects
     return objects
+
+
+def load_geometry(visual):
+    geometry = visual.find('geometry')
+
+    mesh = geometry.find('mesh')
+    if mesh:
+        return load_mesh(mesh)
+
+    cylinder = geometry.find('cyclinder')
+    if cylinder:
+        length = cylinder.attrib['length']
+        radius = cylinder.attrib['radius']
+        bpy.ops.mesh.primitive_cylinder_add(vertices=64, radius=radius, depth=length, enter_editmode=False, align='WORLD')
+        return [bpy.context.active_object]
+
+    return []
+
 
 
 def add_revolute_joint_bone(armature, joint, empty, parent_bone_name):
@@ -196,7 +210,11 @@ def import_urdf(filepath):
 
     links = xml_root.findall('link')
     joints = xml_root.findall('joint')
-    rootlinks = find_rootlinks(joints)
+
+    if joints:
+        rootlinks = find_rootlinks(joints)
+    else:
+        rootlinks = [link.attrib['name'] for link in links]
 
     for rootlink in rootlinks:
         bpy.ops.object.empty_add(type='ARROWS', align='WORLD', location=(0, 0, 0), scale=(1, 1, 1))
@@ -217,6 +235,9 @@ def import_urdf(filepath):
         armature.pose.bones[bone_name].lock_ik_z = True
         bpy.ops.object.mode_set(mode='OBJECT')
 
+        visual = rootlink.find('visual')
+        # TODO add this visual
+
         add_childjoints(armature, joints, links, rootlink, empty, bone_name)
 
         ## Skinning
@@ -236,11 +257,11 @@ def import_urdf(filepath):
                 assign_vertices_to_group(object, groupname)
 
         # Delete the empties
-        bpy.ops.object.select_all(action='DESELECT') 
-        for object in bpy.data.objects:
-            if 'TF_' in object.name:
-                object.select_set(True)
-        bpy.ops.object.delete() 
+        # bpy.ops.object.select_all(action='DESELECT') 
+        # for object in bpy.data.objects:
+        #     if 'TF_' in object.name:
+        #         object.select_set(True)
+        # bpy.ops.object.delete() 
     
     
 if __name__ == '__main__':
