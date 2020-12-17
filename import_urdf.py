@@ -187,7 +187,6 @@ def assign_vertices_to_group(object, groupname):
     group.add(indices, 1.0, type='ADD')
 
 
-
 def import_urdf(filepath):
     if not os.path.exists(filepath):
         print('File does not exist')

@@ -6,7 +6,6 @@ from bpy.props import StringProperty
 
 
 class URDF_OT_FilebrowserImporter(Operator, ImportHelper): 
-
     bl_idname = "import.urdf_filebrowser" 
     bl_label = "Import URDF" 
 

@@ -44,7 +44,6 @@ def make_annotations(cls):
 # All classes to register.
 classes = (
     import_urdf_operator.URDF_OT_FilebrowserImporter,
-    import_urdf_operator.URDF_PT_Import,
 )
 
 def menu_func_import(self, context):
