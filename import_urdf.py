@@ -121,6 +121,20 @@ def add_revolute_joint_bone(armature, joint, empty, parent_bone_name):
     eb.tail = empty.location + axis_world / 10
     eb.parent = armature.data.edit_bones[parent_bone_name]
     bone_name = eb.name
+
+    bpy.ops.object.mode_set(mode='POSE')
+
+    posebone = armature.pose.bones[bone_name]
+
+    posebone.rotation_mode = 'XYZ'
+    posebone.lock_rotation[0] = True
+    posebone.lock_rotation[1] = False
+    posebone.lock_rotation[2] = True
+
+    posebone.lock_ik_x = True
+    posebone.lock_ik_y = False
+    posebone.lock_ik_z = True
+
     bpy.ops.object.mode_set(mode='OBJECT')
     return bone_name
 
@@ -197,33 +211,12 @@ def add_inverse_kinematics(bone_name):
     bpy.context.object.pose.bones[bone_name].constraints["IK"].target = armature
     bpy.context.object.pose.bones[bone_name].constraints["IK"].subtarget = target_bone_name
     bpy.context.object.pose.bones[bone_name].constraints["IK"].use_rotation = True
-    bpy.context.object.pose.ik_solver = 'ITASC'
-
-
-    for posebone in armature.pose.bones:
-        posebone.lock_ik_x = True
-        posebone.lock_ik_y = False
-        posebone.lock_ik_z = True
-        
-    armature.pose.bones['root'].lock_ik_y = True
-        
+    bpy.context.object.pose.ik_solver = 'ITASC'               
         
     bpy.ops.object.mode_set(mode='OBJECT')
 
-    select_only(armature)
 
-    for object in bpy.data.objects:
-        if 'DEFORM__' in object.name:
-            object.select_set(True)
 
-            
-    bpy.ops.object.shade_flat()            
-    bpy.ops.object.parent_set(type='ARMATURE_NAME')
-
-    for object in bpy.data.objects:
-        if 'DEFORM__' in object.name:
-            groupname = object.name.split('__')[1]
-            assign_vertices_to_group(object, groupname)
 
 def import_urdf(filepath):
     if not os.path.exists(filepath):
@@ -248,20 +241,43 @@ def import_urdf(filepath):
         bone_name = 'root'
         bpy.context.active_bone.name = bone_name
 
+        select_only(armature)
+        bpy.ops.object.mode_set(mode='POSE')
+        armature.pose.bones[bone_name].lock_ik_x = True
+        armature.pose.bones[bone_name].lock_ik_y = True
+        armature.pose.bones[bone_name].lock_ik_z = True
+        bpy.ops.object.mode_set(mode='OBJECT')
+
         add_childjoints(armature, joints, links, rootlink, empty, bone_name)
         
 
-    
-    # todo
-    add_inverse_kinematics('left_w2')
-    add_inverse_kinematics('right_w2')
+        # todo
+        # add_inverse_kinematics('left_w2')
+        # add_inverse_kinematics('right_w2')
 
-    # Delete the empties
-    bpy.ops.object.select_all(action='DESELECT') 
-    for object in bpy.data.objects:
-        if 'TF_' in object.name:
-            object.select_set(True)
-    bpy.ops.object.delete() 
+
+        ## Skinning
+        select_only(armature)
+
+        for object in bpy.data.objects:
+            if 'DEFORM__' in object.name:
+                object.select_set(True)
+
+
+        bpy.ops.object.shade_flat()            
+        bpy.ops.object.parent_set(type='ARMATURE_NAME')
+
+        for object in bpy.data.objects:
+            if 'DEFORM__' in object.name:
+                groupname = object.name.split('__')[1]
+                assign_vertices_to_group(object, groupname)
+
+        # Delete the empties
+        bpy.ops.object.select_all(action='DESELECT') 
+        for object in bpy.data.objects:
+            if 'TF_' in object.name:
+                object.select_set(True)
+        bpy.ops.object.delete() 
     
     #bpy.context.area.type = 'VIEW_3D'
     #bpy.ops.view3d.snap_cursor_to_center()
