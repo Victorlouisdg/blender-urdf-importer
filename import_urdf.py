@@ -78,6 +78,9 @@ def parse_mesh_filename(mesh_filename):
             # TODO throw error
             
         ros_package_paths = ros_package_paths.split(':')
+
+        print(ros_package_paths)
+
         for ros_package_path in ros_package_paths:
             filepath_package = mesh_filename.replace('package://', '')
             
@@ -87,11 +90,13 @@ def parse_mesh_filename(mesh_filename):
 
             for package_path in glob.glob(ros_package_path + '/**' + package_name):
                 filepath = os.path.join(package_path, filepath_in_package)
-
-                print(filepath, os.path.exists(filepath))
                 if os.path.exists(filepath):
                     return filepath
 
+            for package_path in glob.glob(ros_package_path + '/**/' + package_name):
+                filepath = os.path.join(package_path, filepath_in_package)
+                if os.path.exists(filepath):
+                    return filepath
 
     print('Cant find the mesh file :(')
     # TODO if we get here, throw an error
@@ -101,6 +106,7 @@ def load_mesh(mesh):
     mesh_filename = mesh.attrib['filename']
     mesh_path = parse_mesh_filename(mesh_filename)
     bpy.ops.wm.collada_import(filepath=mesh_path)
+    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
     objects_to_delete = [o for o in bpy.context.scene.objects if o.type in ('CAMERA', 'LIGHT')]
     bpy.ops.object.delete({"selected_objects": objects_to_delete})
     objects = bpy.context.selected_objects
@@ -271,8 +277,13 @@ def import_urdf(filepath):
 
         visual = link.find('visual')
         if visual is not None:
-            load_geometry(visual)
+            objects = load_geometry(visual)
+            for object in objects:
+                object.data.use_auto_smooth = True
+                select_only(object)
+                bpy.ops.object.shade_smooth()
 
+        
         add_childjoints(armature, joints, links, rootlink, empty, bone_name)
 
         ## Skinning
@@ -281,9 +292,10 @@ def import_urdf(filepath):
         for object in bpy.data.objects:
             if 'DEFORM__' in object.name:
                 object.select_set(True)
+                object.data.use_auto_smooth = True
 
 
-        bpy.ops.object.shade_flat()            
+        bpy.ops.object.shade_smooth()
         bpy.ops.object.parent_set(type='ARMATURE_NAME')
 
         for object in bpy.data.objects:
@@ -292,11 +304,11 @@ def import_urdf(filepath):
                 assign_vertices_to_group(object, groupname)
 
         # Delete the empties
-        # bpy.ops.object.select_all(action='DESELECT') 
-        # for object in bpy.data.objects:
-        #     if 'TF_' in object.name:
-        #         object.select_set(True)
-        # bpy.ops.object.delete() 
+        bpy.ops.object.select_all(action='DESELECT') 
+        for object in bpy.data.objects:
+            if 'TF_' in object.name:
+                object.select_set(True)
+        bpy.ops.object.delete() 
 
 
     
