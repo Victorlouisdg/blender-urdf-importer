@@ -2,8 +2,8 @@ import os
 import glob
 import xml.etree.ElementTree as ET
 import bpy
-import mathutils
 import numpy as np
+from mathutils import Vector
 
 
 def find_rootlinks(joints):
@@ -42,17 +42,19 @@ def add_next_empty(empty, joint):
     new_empty = bpy.context.active_object
     new_empty.name = 'TF_' + joint.attrib['name']
 
-    
-    translation = [float(s) for s in joint.find('origin').attrib['xyz'].split()]
-    bpy.ops.transform.translate(value=translation, orient_type='LOCAL')
+    origin = joint.find('origin')
+    if origin is not None:
+        if 'xyz' in origin.attrib:
+            translation = [float(s) for s in origin.attrib['xyz'].split()]
+            bpy.ops.transform.translate(value=translation, orient_type='LOCAL')
 
-    bpy.context.scene.cursor.matrix = new_empty.matrix_world
-    
-    roll, pitch, yaw = [float(s) for s in joint.find('origin').attrib['rpy'].split()]    
-
-    bpy.ops.transform.rotate(value=roll, orient_axis='X', orient_type='CURSOR')
-    bpy.ops.transform.rotate(value=pitch, orient_axis='Y', orient_type='CURSOR')
-    bpy.ops.transform.rotate(value=yaw, orient_axis='Z', orient_type='CURSOR')
+        bpy.context.scene.cursor.matrix = new_empty.matrix_world
+        
+        if 'rpy' in origin.attrib:
+            roll, pitch, yaw = [float(s) for s in origin.attrib['rpy'].split()]    
+            bpy.ops.transform.rotate(value=roll, orient_axis='X', orient_type='CURSOR')
+            bpy.ops.transform.rotate(value=pitch, orient_axis='Y', orient_type='CURSOR')
+            bpy.ops.transform.rotate(value=yaw, orient_axis='Z', orient_type='CURSOR')
 
     bpy.context.view_layer.update()
     return new_empty
@@ -82,15 +84,15 @@ def parse_mesh_filename(mesh_filename):
             filepath_split = filepath_package.split('/')
             package_name = filepath_split[0]
             filepath_in_package = os.path.join(*filepath_split[1:])
-            
-            # TODO recursive search in ros_package_path for package_path
-            for package_path in glob.glob(ros_package_path + '/**/' + package_name):
+
+            for package_path in glob.glob(ros_package_path + '/**' + package_name):
                 filepath = os.path.join(package_path, filepath_in_package)
 
                 print(filepath, os.path.exists(filepath))
                 if os.path.exists(filepath):
                     return filepath
-        
+
+
     print('Cant find the mesh file :(')
     # TODO if we get here, throw an error
 
@@ -109,22 +111,38 @@ def load_geometry(visual):
     geometry = visual.find('geometry')
 
     mesh = geometry.find('mesh')
-    if mesh:
+    if mesh is not None:
         return load_mesh(mesh)
 
-    cylinder = geometry.find('cyclinder')
-    if cylinder:
-        length = cylinder.attrib['length']
-        radius = cylinder.attrib['radius']
-        bpy.ops.mesh.primitive_cylinder_add(vertices=64, radius=radius, depth=length, enter_editmode=False, align='WORLD')
+    cylinder = geometry.find('cylinder')
+    if cylinder is not None:
+        length = float(cylinder.attrib['length'])
+        radius = float(cylinder.attrib['radius'])
+        bpy.ops.mesh.primitive_cylinder_add(vertices=64, radius=radius, depth=length)
         return [bpy.context.active_object]
+
+    box = geometry.find('box')
+    if box is not None:
+        x, y, z = [float(s) for s in box.attrib['size'].split()]
+        bpy.ops.mesh.primitive_cube_add()
+        cube = bpy.context.active_object
+        cube.dimensions = Vector((x, y, z))
+        bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+        return [cube]
+
+    sphere = geometry.find('sphere')
+    if sphere is not None:
+        radius = float(sphere.attrib['radius'])
+        bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=3, radius=radius)
+        return [bpy.context.active_object]
+
 
     return []
 
 
 
 def add_revolute_joint_bone(armature, joint, empty, parent_bone_name):
-    axis = mathutils.Vector([float(s) for s in joint.find('axis').attrib['xyz'].split()])
+    axis = Vector([float(s) for s in joint.find('axis').attrib['xyz'].split()])
     axis_world = empty.matrix_world.to_3x3() @ axis
 
     select_only(armature)
@@ -155,18 +173,26 @@ def add_revolute_joint_bone(armature, joint, empty, parent_bone_name):
 def position_link_objects(visual, objects, empty, joint_name):
     for i, object in enumerate(objects):
         select_only(object)
+        print(bpy.context.selected_objects)
         object.matrix_world = empty.matrix_world
         object.name = 'DEFORM__' + joint_name + '__' + str(i)
+        
         bpy.context.scene.cursor.matrix = empty.matrix_world
 
-        translation = [float(s) for s in visual.find('origin').attrib['xyz'].split()]
-        bpy.ops.transform.translate(value=translation, orient_type='CURSOR')
+        origin = visual.find('origin')
+        if origin is not None:
+            if 'rpy' in origin.attrib:
+                roll, pitch, yaw = [float(s) for s in origin.attrib['rpy'].split()]
 
-        roll, pitch, yaw = [float(s) for s in visual.find('origin').attrib['rpy'].split()]
+                bpy.ops.transform.rotate(value=roll, orient_axis='X', orient_type='CURSOR')
+                bpy.ops.transform.rotate(value=pitch, orient_axis='Y', orient_type='CURSOR')
+                bpy.ops.transform.rotate(value=yaw, orient_axis='Z', orient_type='CURSOR')
 
-        bpy.ops.transform.rotate(value=roll, orient_axis='X', orient_type='CURSOR')
-        bpy.ops.transform.rotate(value=pitch, orient_axis='Y', orient_type='CURSOR')
-        bpy.ops.transform.rotate(value=yaw, orient_axis='Z', orient_type='CURSOR')
+            if 'xyz' in origin.attrib:
+                translation = [float(s) for s in origin.attrib['xyz'].split()]
+                bpy.ops.transform.translate(value=translation, orient_type='CURSOR')
+
+            
         bpy.context.view_layer.update()
 
 
@@ -187,7 +213,7 @@ def add_childjoints(armature, joints, links, link, empty, parent_bone_name):
                 break
         
         visual = childlink.find('visual')
-        if visual:
+        if visual is not None:
             objects = load_geometry(visual)
             position_link_objects(visual, objects, new_empty, bone_name)
         
@@ -217,6 +243,9 @@ def import_urdf(filepath):
         rootlinks = [link.attrib['name'] for link in links]
 
     for rootlink in rootlinks:
+        bpy.context.scene.cursor.location = Vector((0.0, 0.0, 0.0))
+        bpy.context.scene.cursor.rotation_euler = Vector((0.0, 0.0, 0.0))
+
         bpy.ops.object.empty_add(type='ARROWS', align='WORLD', location=(0, 0, 0), scale=(1, 1, 1))
         bpy.context.object.empty_display_size = 0.2
         empty = bpy.context.active_object
@@ -235,8 +264,14 @@ def import_urdf(filepath):
         armature.pose.bones[bone_name].lock_ik_z = True
         bpy.ops.object.mode_set(mode='OBJECT')
 
-        visual = rootlink.find('visual')
-        # TODO add this visual
+    
+        for link in links:
+            if link.attrib['name'] == rootlink:
+                break
+
+        visual = link.find('visual')
+        if visual is not None:
+            load_geometry(visual)
 
         add_childjoints(armature, joints, links, rootlink, empty, bone_name)
 
@@ -262,6 +297,8 @@ def import_urdf(filepath):
         #     if 'TF_' in object.name:
         #         object.select_set(True)
         # bpy.ops.object.delete() 
+
+
     
     
 if __name__ == '__main__':
