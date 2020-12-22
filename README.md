@@ -10,13 +10,9 @@ The armature created for the robot contains a bone for each revolute joint that 
 Joint limits, prismatic joints and planar joints are not supported yet.
 
 ## Installation
-Clone this repository into the addons directory for Blender (e.g. `/home/blender-2.91.0/2.91/scripts/addons`):
+Currently the easiest way to install is to clone or download this repository and copy the `urdf_importer` directory into the addons directory for Blender (e.g. `/home/blender-2.91.0/2.91/scripts/addons`):
 
-```
-git clone https://github.com/Victorlouisdg/blender-urdf-importer.git
-```
-
-Then open Blender in `Edit > Preferences > Add-ons` search for 'URDF Importer' and check the box.
+Then open Blender and in `Edit > Preferences > Add-ons` search for 'URDF Importer' and check the box.
 
 ## Usage
 If the installation was succesful, you should see `URDF` as an option in the `File > Import` menu.
