@@ -141,10 +141,8 @@ def load_geometry(visual):
         radius = float(sphere.attrib['radius'])
         bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=3, radius=radius)
         return [bpy.context.active_object]
-
-
+        
     return []
-
 
 
 def add_revolute_joint_bone(armature, joint, empty, parent_bone_name):
@@ -309,10 +307,9 @@ def import_urdf(filepath):
             if 'TF_' in object.name:
                 object.select_set(True)
         bpy.ops.object.delete() 
+        select_only(armature)
 
 
-    
-    
 if __name__ == '__main__':
     filepath = '/home/idlab185/ur10.urdf'
     import_urdf(filepath)
