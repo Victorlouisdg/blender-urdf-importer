@@ -4,7 +4,7 @@
 A minimalistic URDF file importer for Blender.
 It allows you to bring your robot model into Blender and creates an armature so you can easily pose it.
 This is an alpha version developed and tested for Blender 2.9.1 but should work for all versions since 2.8.
-If you encouter issues with your URDF file or version of Blender, feel free to open an issue.
+If you encounter issues with your URDF file or version of Blender, feel free to open an issue.
 
 The armature created for the robot contains a bone for each revolute joint that can only rotate along the correct axis.
 Joint limits, prismatic joints and planar joints are not supported yet.
